@@ -2,10 +2,9 @@
 pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "../interfaces/IRandomNumberGenerator.sol";
 import "../interfaces/IPeakFinanceLottery.sol";
 
-contract MockRandomNumberGenerator is IRandomNumberGenerator, Ownable {
+contract MockRandomNumberGenerator is Ownable {
     address public peakFinanceLottery;
     uint32 public randomResult;
     uint256 public nextRandomResult;
@@ -35,8 +34,9 @@ contract MockRandomNumberGenerator is IRandomNumberGenerator, Ownable {
 
     /**
      * @notice Request randomness from a user-provided seed
+     * @param _seed: seed provided by the PeakFinance lottery
      */
-    function getRandomNumber() external override {
+    function getRandomNumber(uint256 _seed) external {
         require(msg.sender == peakFinanceLottery, "Only PeakFinanceLottery");
         fulfillRandomness(0, nextRandomResult);
     }
@@ -51,14 +51,14 @@ contract MockRandomNumberGenerator is IRandomNumberGenerator, Ownable {
     /**
      * @notice View latestLotteryId
      */
-    function viewLatestLotteryId() external view override returns (uint256) {
+    function viewLatestLotteryId() external view returns (uint256) {
         return latestLotteryId;
     }
 
     /**
      * @notice View random result
      */
-    function viewRandomResult() external view override returns (uint32) {
+    function viewRandomResult() external view returns (uint32) {
         return randomResult;
     }
 
