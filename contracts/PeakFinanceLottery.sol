@@ -2,10 +2,9 @@
 pragma solidity ^0.8.4;
 pragma abicoder v2;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "./interfaces/IRandomNumberGenerator.sol";
 import "./interfaces/IPeakFinanceLottery.sol";
 
@@ -13,8 +12,8 @@ import "./interfaces/IPeakFinanceLottery.sol";
  * @notice It is a contract for a lottery system using
  * randomness provided externally.
  */
-contract PeakFinanceLottery is ReentrancyGuard, IPeakFinanceLottery, Ownable {
-    using SafeERC20 for IERC20;
+contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, OwnableUpgradeable {
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
     address public injectorAddress;
     address public operatorAddress;
@@ -35,7 +34,7 @@ contract PeakFinanceLottery is ReentrancyGuard, IPeakFinanceLottery, Ownable {
     uint256 public constant MAX_LENGTH_LOTTERY = 4 days + 5 minutes; // 4 days
     uint256 public constant MAX_TREASURY_FEE = 3000; // 30%
 
-    IERC20 public peakToken;
+    IERC20Upgradeable public peakToken;
     IRandomNumberGenerator public randomGenerator;
 
     enum Status {
@@ -112,14 +111,14 @@ contract PeakFinanceLottery is ReentrancyGuard, IPeakFinanceLottery, Ownable {
     event TicketsPurchase(address indexed buyer, uint256 indexed lotteryId, uint256 numberTickets);
     event TicketsClaim(address indexed claimer, uint256 amount, uint256 indexed lotteryId, uint256 numberTickets);
 
-    /**
-     * @notice Constructor
-     * @dev RandomNumberGenerator must be deployed prior to this contract
-     * @param _peakTokenAddress: address of the PEAK token
-     * @param _randomGeneratorAddress: address of the RandomGenerator contract used to work with ChainLink VRF
-     */
-    constructor(address _peakTokenAddress, address _randomGeneratorAddress) {
-        peakToken = IERC20(_peakTokenAddress);
+    function initialize(address _peakTokenAddress, address _randomGeneratorAddress) public initializer {
+        __Ownable_init_unchained();
+        __ReentrancyGuard_init_unchained();
+        __PeakFinanceLottery_init_unchained(_peakTokenAddress, _randomGeneratorAddress);
+    }
+
+    function __PeakFinanceLottery_init_unchained(address _peakTokenAddress, address _randomGeneratorAddress) internal onlyInitializing {
+        peakToken = IERC20Upgradeable(_peakTokenAddress);
         randomGenerator = IRandomNumberGenerator(_randomGeneratorAddress);
 
         // Initializes a mapping
@@ -462,7 +461,7 @@ contract PeakFinanceLottery is ReentrancyGuard, IPeakFinanceLottery, Ownable {
     function recoverWrongTokens(address _tokenAddress, uint256 _tokenAmount) external onlyOwner {
         require(_tokenAddress != address(peakToken), "Cannot be PEAK token");
 
-        IERC20(_tokenAddress).safeTransfer(address(msg.sender), _tokenAmount);
+        IERC20Upgradeable(_tokenAddress).safeTransfer(address(msg.sender), _tokenAmount);
 
         emit AdminTokenRecovery(_tokenAddress, _tokenAmount);
     }
