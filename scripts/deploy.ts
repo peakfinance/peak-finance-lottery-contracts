@@ -26,7 +26,6 @@ const main = async (withVRFOnTestnet: boolean = true) => {
 
   const peakFinanceLottery = await PeakFinanceLottery.deploy(
     config.PeakToken,
-    "0x0000000000000000000000000000000000000000"
   );
 
   await peakFinanceLottery.deployed();

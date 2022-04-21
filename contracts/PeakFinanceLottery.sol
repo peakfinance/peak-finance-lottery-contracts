@@ -112,16 +112,14 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
     event TicketsPurchase(address indexed buyer, uint256 indexed lotteryId, uint256 numberTickets);
     event TicketsClaim(address indexed claimer, uint256 amount, uint256 indexed lotteryId, uint256 numberTickets);
 
-    function initialize(address _peakTokenAddress, address _randomGeneratorAddress) public initializer {
+    function initialize(address _peakTokenAddress) public initializer {
         __Ownable_init_unchained();
         __ReentrancyGuard_init_unchained();
-        __PeakFinanceLottery_init_unchained(_peakTokenAddress, _randomGeneratorAddress);
+        __PeakFinanceLottery_init_unchained(_peakTokenAddress);
     }
 
-    function __PeakFinanceLottery_init_unchained(address _peakTokenAddress, address _randomGeneratorAddress) internal onlyInitializing {
+    function __PeakFinanceLottery_init_unchained(address _peakTokenAddress) internal onlyInitializing {
         peakToken = IERC20Upgradeable(_peakTokenAddress);
-        randomGenerator = IRandomNumberGenerator(_randomGeneratorAddress);
-
         // Initializes a mapping
         _bracketCalculator[0] = 1;
         _bracketCalculator[1] = 11;
