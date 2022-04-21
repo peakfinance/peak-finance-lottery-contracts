@@ -334,7 +334,8 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
         _lotteries[_lotteryId].finalNumber = finalNumber;
         _lotteries[_lotteryId].status = Status.Claimable;
 
-        if( pendingInjectionNextLottery > 0 ) {
+        // if( pendingInjectionNextLottery > 0 && _lotteries[_lotteryId].firstTicketIdNextLottery - _lotteries[_lotteryId].firstTicketId >= 10) {
+        if( pendingInjectionNextLottery > 1000 ether) {
             uint256 burnFromReward = pendingInjectionNextLottery / 2;
             amountToBurn += burnFromReward;
             pendingInjectionNextLottery -= burnFromReward;
