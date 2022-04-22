@@ -10,3 +10,4 @@ coverage/
 coverage.json
 .solcover.js
 typechain
+.openzeppelin

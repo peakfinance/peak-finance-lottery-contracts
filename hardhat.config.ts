@@ -43,11 +43,6 @@ const config: HardhatUserConfig = {
       },
       allowUnlimitedContractSize: true,
     },
-    ropsten: {
-      url: process.env.ROPSTEN_URL || "",
-      accounts:
-        process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
-    },
     stardust: {
       url: process.env.METIS_URL || "",
       accounts:
@@ -55,6 +50,13 @@ const config: HardhatUserConfig = {
           ? [process.env.METIS_PRIVATE_KEY]
           : [],
     },
+    testnet: {
+      url: "https://stardust.metis.io/?owner=588",
+      accounts:
+        process.env.METIS_PRIVATE_KEY !== undefined
+          ? [process.env.METIS_PRIVATE_KEY]
+          : [],
+    }
   },
   etherscan: {
     apiKey: "api-key",

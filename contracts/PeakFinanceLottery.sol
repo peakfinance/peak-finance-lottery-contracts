@@ -23,10 +23,10 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
     uint256 public currentLotteryId;
     uint256 public currentTicketId;
 
-    uint256 public maxNumberTicketsPerBuyOrClaim = 100;
+    uint256 public maxNumberTicketsPerBuyOrClaim;
 
-    uint256 public maxPriceTicketInPeak = 50 ether;
-    uint256 public minPriceTicketInPeak = 0.005 ether;
+    uint256 public maxPriceTicketInPeak;
+    uint256 public minPriceTicketInPeak;
 
     uint256 public pendingInjectionNextLottery;
 
@@ -127,6 +127,10 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
         _bracketCalculator[3] = 1111;
         _bracketCalculator[4] = 11111;
         _bracketCalculator[5] = 111111;
+
+        maxNumberTicketsPerBuyOrClaim = 100;
+        maxPriceTicketInPeak = 50 ether;
+        minPriceTicketInPeak = 0.005 ether;
     }
 
     /**
@@ -339,7 +343,7 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
             pendingInjectionNextLottery -= burnFromReward;
         }
 
-        IBasisAsset(address(peakToken)).burn(amountToBurn);
+        IBasisAsset(address(peakToken)).burnFrom(address(this), amountToBurn);
 
         // Transfer PEAK to treasury address
         peakToken.safeTransfer(treasuryAddress, amountToWithdrawToTreasury);
