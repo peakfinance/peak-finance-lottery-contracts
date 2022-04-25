@@ -343,7 +343,7 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
             pendingInjectionNextLottery -= burnFromReward;
         }
 
-        IBasisAsset(address(peakToken)).burnFrom(address(this), amountToBurn);
+        IBasisAsset(address(peakToken)).burn(amountToBurn);
 
         // Transfer PEAK to treasury address
         peakToken.safeTransfer(treasuryAddress, amountToWithdrawToTreasury);
