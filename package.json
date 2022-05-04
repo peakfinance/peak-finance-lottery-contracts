@@ -11,7 +11,8 @@
     "deploy:mainnet": "npx hardhat run --network mainnet scripts/deploy.ts",
     "test": "npx hardhat test",
     "test:coverage": "npx hardhat coverage",
-    "test:size-contracts": "npx hardhat size-contracts"
+    "test:size-contracts": "npx hardhat size-contracts",
+    "postinstall": "patch-package"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.5",
