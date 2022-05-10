@@ -5,9 +5,9 @@ pragma abicoder v2;
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
-import "./interfaces/IRandomNumberGenerator.sol";
 import "./interfaces/IPeakFinanceLottery.sol";
 import "./interfaces/IBasisAsset.sol";
+import "@api3/airnode-protocol/contracts/rrp/interfaces/IAirnodeRrpV0.sol";
 
 /** @title PeakFinance Lottery.
  * @notice It is a contract for a lottery system using
@@ -36,7 +36,12 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
     uint256 public constant MAX_TREASURY_FEE = 3000; // 30%
 
     IERC20Upgradeable public peakToken;
-    IRandomNumberGenerator public randomGenerator;
+    IAirnodeRrpV0 public airnodeRrp;
+    address public airnode;
+    bytes32 public endpointIdUint256;
+    address public sponsorWallet;
+
+    mapping(bytes32 => bool) public expectingRequestWithIdToBeFulfilled;
 
     enum Status {
         Pending,
@@ -59,6 +64,7 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
         uint256 firstTicketIdNextLottery;
         uint256 amountCollectedInPeak;
         uint32 finalNumber;
+        bytes32 requestId;
     }
 
     struct Ticket {
@@ -85,6 +91,11 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
         _;
     }
 
+    modifier onlyAirnodeRrp() {
+        require(msg.sender == address(airnodeRrp), "Caller not Airnode RRP");
+        _;
+    }
+
     modifier onlyOperator() {
         require(msg.sender == operatorAddress, "Not operator");
         _;
@@ -108,17 +119,18 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
     );
     event LotteryNumberDrawn(uint256 indexed lotteryId, uint256 finalNumber, uint256 countWinningTickets);
     event NewOperatorAndTreasuryAndInjectorAddresses(address operator, address treasury, address injector);
-    event NewRandomGenerator(address indexed randomGenerator);
+    event RequestedUint256(bytes32 indexed requestId);
+    event ReceivedUint256(bytes32 indexed requestId, uint256 response);
     event TicketsPurchase(address indexed buyer, uint256 indexed lotteryId, uint256 numberTickets);
     event TicketsClaim(address indexed claimer, uint256 amount, uint256 indexed lotteryId, uint256 numberTickets);
 
-    function initialize(address _peakTokenAddress) public initializer {
+    function initialize(address _peakTokenAddress, address _airnodeRrp) public initializer {
         __Ownable_init_unchained();
         __ReentrancyGuard_init_unchained();
-        __PeakFinanceLottery_init_unchained(_peakTokenAddress);
+        __PeakFinanceLottery_init_unchained(_peakTokenAddress, _airnodeRrp);
     }
 
-    function __PeakFinanceLottery_init_unchained(address _peakTokenAddress) internal onlyInitializing {
+    function __PeakFinanceLottery_init_unchained(address _peakTokenAddress, address _airnodeRrp) internal onlyInitializing {
         peakToken = IERC20Upgradeable(_peakTokenAddress);
         // Initializes a mapping
         _bracketCalculator[0] = 1;
@@ -131,6 +143,9 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
         maxNumberTicketsPerBuyOrClaim = 100;
         maxPriceTicketInPeak = 50 ether;
         minPriceTicketInPeak = 0.005 ether;
+
+        airnodeRrp = IAirnodeRrpV0(_airnodeRrp);
+        IAirnodeRrpV0(_airnodeRrp).setSponsorshipStatus(address(this), true);
     }
 
     /**
@@ -251,6 +266,19 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
         require(block.timestamp > _lotteries[_lotteryId].endTime, "Lottery not over");
         _lotteries[_lotteryId].firstTicketIdNextLottery = currentTicketId;
 
+        bytes32 requestId = airnodeRrp.makeFullRequest(
+            airnode,
+            endpointIdUint256,
+            address(this),
+            sponsorWallet,
+            address(this),
+            this.fulfillUint256.selector,
+            ""
+        );
+        expectingRequestWithIdToBeFulfilled[requestId] = true;
+        _lotteries[_lotteryId].requestId = requestId;
+        emit RequestedUint256(requestId);
+
         _lotteries[_lotteryId].status = Status.Close;
 
         emit LotteryClose(_lotteryId, currentTicketId);
@@ -279,11 +307,13 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
         nonReentrant
     {
         require(_lotteries[_lotteryId].status == Status.Close, "Lottery not close");
-        // require(_lotteryId == randomGenerator.viewLatestLotteryId(), "Numbers not drawn");
-
+        bytes32 requestId = _lotteries[_lotteryId].requestId;
+        
+        require(requestId != 0, "Request to QRNG not sent");
+        require(expectingRequestWithIdToBeFulfilled[requestId] == false, "Numbers not drawn");
+        
         // Calculate the finalNumber based on the randomResult generated by ChainLink's fallback
-        uint256 randomNumber = _random() % 10000000;
-        uint32 finalNumber = uint32(randomNumber);
+        uint32 finalNumber = _lotteries[_lotteryId].finalNumber;
 
         // Initialize a number to count addresses in the previous bracket
         uint256 numberAddressesInPreviousBracket;
@@ -349,32 +379,6 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
         peakToken.safeTransfer(treasuryAddress, amountToWithdrawToTreasury);
 
         emit LotteryNumberDrawn(currentLotteryId, finalNumber, numberAddressesInPreviousBracket);
-    }
-
-    /**
-     * @notice Change the random generator
-     * @dev The calls to functions are used to verify the new generator implements them properly.
-     * It is necessary to wait for the VRF response before starting a round.
-     * Callable only by the contract owner
-     * @param _randomGeneratorAddress: address of the random generator
-     */
-    function changeRandomGenerator(address _randomGeneratorAddress) external onlyOwner {
-        require(
-            (currentLotteryId == 0) || (_lotteries[currentLotteryId].status == Status.Claimable),
-            "Lottery not in claimable"
-        );
-
-        // Request a random number from the generator based on a seed
-        IRandomNumberGenerator(_randomGeneratorAddress).getRandomNumber(
-            uint256(keccak256(abi.encodePacked(currentLotteryId, currentTicketId)))
-        );
-
-        // Calculate the finalNumber based on the randomResult generated by ChainLink's fallback
-        IRandomNumberGenerator(_randomGeneratorAddress).viewRandomResult();
-
-        randomGenerator = IRandomNumberGenerator(_randomGeneratorAddress);
-
-        emit NewRandomGenerator(_randomGeneratorAddress);
     }
 
     /**
@@ -451,7 +455,8 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
             firstTicketId: currentTicketId,
             firstTicketIdNextLottery: currentTicketId,
             amountCollectedInPeak: pendingInjectionNextLottery,
-            finalNumber: 0
+            finalNumber: 0,
+            requestId: 0
         });
 
         emit LotteryOpen(
@@ -717,5 +722,42 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
             size := extcodesize(_addr)
         }
         return size > 0;
+    }
+
+    /// @notice Called by the Airnode through the AirnodeRrp contract to
+    /// fulfill the request
+    /// @dev Note the `onlyAirnodeRrp` modifier. You should only accept RRP
+    /// fulfillments from this protocol contract. Also note that only
+    /// fulfillments for the requests made by this contract are accepted, and
+    /// a request cannot be responded to multiple times.
+    /// @param requestId Request ID
+    /// @param data ABI-encoded response
+    function fulfillUint256(bytes32 requestId, bytes calldata data)
+        external
+        onlyAirnodeRrp
+    {
+        require(
+            expectingRequestWithIdToBeFulfilled[requestId],
+            "Request ID not known"
+        );
+        expectingRequestWithIdToBeFulfilled[requestId] = false;
+        uint256 qrngUint256 = abi.decode(data, (uint256));
+        if(_lotteries[currentLotteryId].requestId == requestId) {
+            uint256 result = qrngUint256 % 10000000;
+            _lotteries[currentLotteryId].finalNumber = uint32(result);
+        }
+        emit ReceivedUint256(requestId, qrngUint256);
+    }
+
+    // Set parameters used by airnodeRrp.makeFullRequest(...)
+    // See makeRequestUint256()
+    function setRequestParameters(
+        address _airnode,
+        bytes32 _endpointIdUint256,
+        address _sponsorWallet
+    ) external onlyOwner {
+        airnode = _airnode;
+        endpointIdUint256 = _endpointIdUint256;
+        sponsorWallet = _sponsorWallet;
     }
 }
