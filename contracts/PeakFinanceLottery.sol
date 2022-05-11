@@ -743,7 +743,7 @@ contract PeakFinanceLottery is ReentrancyGuardUpgradeable, IPeakFinanceLottery, 
         expectingRequestWithIdToBeFulfilled[requestId] = false;
         uint256 qrngUint256 = abi.decode(data, (uint256));
         if(_lotteries[currentLotteryId].requestId == requestId) {
-            uint256 result = qrngUint256 % 10000000;
+            uint256 result = qrngUint256 % 1000000 + 1000000;
             _lotteries[currentLotteryId].finalNumber = uint32(result);
         }
         emit ReceivedUint256(requestId, qrngUint256);
